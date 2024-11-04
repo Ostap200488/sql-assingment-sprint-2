@@ -124,7 +124,6 @@ The system uses three main tables:
 
 1. **Database Connection Issues**:
    - Ensure PostgreSQL is running (`brew services start postgresql` on macOS or `sudo systemctl start postgresql` on Linux).
-   - Verify your `.env` file has correct database credentials.
 
 2. **Permission Errors**:
    - Ensure your PostgreSQL user has the correct permissions for creating tables and inserting data.
