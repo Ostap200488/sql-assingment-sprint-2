@@ -130,6 +130,34 @@ async function findMoviesByCustomer(email) {
   }
 }
 
+// Function to show all movies
+async function showMovies() {
+  try {
+    const res = await dbPool.query("SELECT * FROM Film;");
+    if (res.rows.length > 0) {
+      console.table(res.rows);
+    } else {
+      console.log("No movies found in the database.");
+    }
+  } catch (err) {
+    console.error("Error showing movies:", err);
+  }
+}
+
+// Function to remove a customer and their rental history
+async function removeCustomer(clientId) {
+  try {
+    const res = await dbPool.query("DELETE FROM Client WHERE id = $1 RETURNING *;", [clientId]);
+    if (res.rowCount > 0) {
+      console.log(`Customer with ID ${clientId} and their rental history have been removed.`);
+    } else {
+      console.log("No customer found with the given ID.");
+    }
+  } catch (err) {
+    console.error("Error removing customer:", err);
+  }
+}
+
 // CLI functionality
 const args = process.argv.slice(2);
 (async () => {
@@ -145,7 +173,11 @@ const args = process.argv.slice(2);
       break;
     case "update-email":
       if (args[1] && args[2]) {
-        await updateEmail(args[1], args[2]);
+        await dbPool.query(
+          "UPDATE Client SET email_address = $1 WHERE id = $2;",
+          [args[2], args[1]]
+        );
+        console.log("Email updated successfully.");
       } else {
         console.log("Usage: update-email <clientId> <newEmail>");
       }
@@ -157,8 +189,15 @@ const args = process.argv.slice(2);
         console.log("Usage: find-movies-by-customer <email>");
       }
       break;
+    case "remove-customer":
+      if (args[1]) {
+        await removeCustomer(args[1]);
+      } else {
+        console.log("Usage: remove-customer <clientId>");
+      }
+      break;
     default:
-      console.log("Invalid command. Use 'help' to see available commands.");
+      console.log("Invalid command. Available commands: setup, insert-sample, show-movies, update-email, find-movies-by-customer, remove-customer.");
   }
   dbPool.end();
 })();
