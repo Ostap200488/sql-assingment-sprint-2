@@ -1,4 +1,4 @@
-// Updated mainapp.js
+
 const { Pool } = require("pg");
 const dbPool = new Pool({
   user: process.env.DB_USER,
@@ -41,163 +41,173 @@ async function setupTables() {
         CHECK (return_date >= rental_date)
       );
     `;
-
     await dbPool.query(filmTable);
     await dbPool.query(clientTable);
     await dbPool.query(rentalTable);
-
-    console.log("Tables created successfully!");
+    console.log("Tables setup completed.");
   } catch (err) {
     console.error("Error setting up tables:", err);
   }
 }
 
-// Function to insert sample data
-async function insertSampleData() {
+// Function to display all movies
+async function showAllMovies() {
   try {
-    const movies = [
-      ["Inception", 2010, "Sci-Fi", "Christopher Nolan"],
-      ["The Godfather", 1972, "Crime", "Francis Ford Coppola"],
-      ["The Dark Knight", 2008, "Action", "Christopher Nolan"],
-      ["Pulp Fiction", 1994, "Crime", "Quentin Tarantino"],
-      ["The Matrix", 1999, "Sci-Fi", "Lana Wachowski"]
-    ];
-    const customers = [
-      ["John", "Doe", "john.doe@example.com", "1234567890"],
-      ["Jane", "Smith", "jane.smith@example.com", "0987654321"],
-      ["Alice", "Brown", "alice.brown@example.com", "1122334455"],
-      ["Bob", "Johnson", "bob.johnson@example.com", "5566778899"],
-      ["Charlie", "Davis", "charlie.davis@example.com", "9988776655"]
-    ];
-    const rentals = [
-      [1, 1, "2024-12-01", null],
-      [1, 2, "2024-12-02", "2024-12-05"],
-      [2, 3, "2024-12-03", "2024-12-04"],
-      [3, 4, "2024-12-04", null],
-      [3, 5, "2024-12-05", null],
-      [4, 2, "2024-12-06", "2024-12-07"],
-      [5, 1, "2024-12-07", null],
-      [5, 3, "2024-12-08", "2024-12-10"],
-      [2, 4, "2024-12-09", null],
-      [4, 5, "2024-12-10", null]
-    ];
-
-    for (const movie of movies) {
-      await dbPool.query(
-        "INSERT INTO Film (title, release_year, category, director_name) VALUES ($1, $2, $3, $4);",
-        movie
-      );
-    }
-
-    for (const customer of customers) {
-      await dbPool.query(
-        "INSERT INTO Client (first_name, last_name, email_address, contact_number) VALUES ($1, $2, $3, $4);",
-        customer
-      );
-    }
-
-    for (const rental of rentals) {
-      await dbPool.query(
-        "INSERT INTO Rental (film_id, client_id, rental_date, return_date) VALUES ($1, $2, $3, $4);",
-        rental
-      );
-    }
-
-    console.log("Sample data inserted successfully!");
+    const result = await dbPool.query("SELECT * FROM Film;");
+    console.log("Movies in the system:");
+    result.rows.forEach((movie) => {
+      console.log(`${movie.id}. ${movie.title} (${movie.release_year}) - ${movie.category}, Directed by ${movie.director_name}`);
+    });
   } catch (err) {
-    console.error("Error inserting sample data:", err);
+    console.error("Error fetching movies:", err);
   }
 }
 
-// Function to find movies rented by a specific customer
-async function findMoviesByCustomer(email) {
+// Function to add a new movie
+async function addMovie(title, releaseYear, category, directorName) {
   try {
-    const res = await dbPool.query(
-      `SELECT F.title, F.release_year, F.category, F.director_name
-       FROM Rental R
-       JOIN Film F ON R.film_id = F.id
-       JOIN Client C ON R.client_id = C.id
-       WHERE C.email_address = $1;`,
-      [email]
-    );
-    if (res.rows.length > 0) {
-      console.table(res.rows);
-    } else {
-      console.log("No movies found for this customer.");
-    }
+    const query = `
+      INSERT INTO Film (title, release_year, category, director_name)
+      VALUES ($1, $2, $3, $4) RETURNING id;
+    `;
+    const values = [title, releaseYear, category, directorName];
+    const result = await dbPool.query(query, values);
+    console.log(`Movie added with ID: ${result.rows[0].id}`);
   } catch (err) {
-    console.error("Error finding movies by customer:", err);
+    console.error("Error adding movie:", err);
   }
 }
 
-// Function to show all movies
-async function showMovies() {
+// Function to update customer email
+async function updateCustomerEmail(customerId, newEmail) {
   try {
-    const res = await dbPool.query("SELECT * FROM Film;");
-    if (res.rows.length > 0) {
-      console.table(res.rows);
-    } else {
-      console.log("No movies found in the database.");
-    }
+    const query = "UPDATE Client SET email_address = $1 WHERE id = $2;";
+    const values = [newEmail, customerId];
+    await dbPool.query(query, values);
+    console.log(`Customer's email updated to ${newEmail}`);
   } catch (err) {
-    console.error("Error showing movies:", err);
+    console.error("Error updating customer email:", err);
   }
 }
 
 // Function to remove a customer and their rental history
-async function removeCustomer(clientId) {
+async function removeCustomer(customerId) {
   try {
-    const res = await dbPool.query("DELETE FROM Client WHERE id = $1 RETURNING *;", [clientId]);
-    if (res.rowCount > 0) {
-      console.log(`Customer with ID ${clientId} and their rental history have been removed.`);
-    } else {
-      console.log("No customer found with the given ID.");
-    }
+    const query = "DELETE FROM Client WHERE id = $1;";
+    await dbPool.query(query, [customerId]);
+    console.log("Customer and their rental history removed.");
   } catch (err) {
     console.error("Error removing customer:", err);
   }
 }
 
-// CLI functionality
+// Query: Find movies rented by a customer using their email
+async function findMoviesByCustomer(email) {
+  try {
+    const query = `
+      SELECT Film.title
+      FROM Rental
+      INNER JOIN Film ON Rental.film_id = Film.id
+      INNER JOIN Client ON Rental.client_id = Client.id
+      WHERE Client.email_address = $1;
+    `;
+    const result = await dbPool.query(query, [email]);
+    console.log(`Movies rented by ${email}:`);
+    result.rows.forEach(row => console.log(row.title));
+  } catch (err) {
+    console.error("Error fetching movies by customer:", err);
+  }
+}
+
+// Query: Find customers by movie title
+async function findCustomersByMovie(title) {
+  try {
+    const query = `
+      SELECT Client.first_name, Client.last_name
+      FROM Rental
+      INNER JOIN Film ON Rental.film_id = Film.id
+      INNER JOIN Client ON Rental.client_id = Client.id
+      WHERE Film.title = $1;
+    `;
+    const result = await dbPool.query(query, [title]);
+    console.log(`Customers who rented "${title}":`);
+    result.rows.forEach(row => console.log(`${row.first_name} ${row.last_name}`));
+  } catch (err) {
+    console.error("Error fetching customers by movie:", err);
+  }
+}
+
+// Query: Rental history for a specific movie
+async function getRentalHistory(title) {
+  try {
+    const query = `
+      SELECT Rental.rental_date, Rental.return_date, Client.first_name, Client.last_name
+      FROM Rental
+      INNER JOIN Film ON Rental.film_id = Film.id
+      INNER JOIN Client ON Rental.client_id = Client.id
+      WHERE Film.title = $1;
+    `;
+    const result = await dbPool.query(query, [title]);
+    console.log(`Rental history for "${title}":`);
+    result.rows.forEach(row => console.log(`${row.rental_date} to ${row.return_date}: ${row.first_name} ${row.last_name}`));
+  } catch (err) {
+    console.error("Error fetching rental history:", err);
+  }
+}
+
+// Query: Currently rented movies
+async function listCurrentlyRentedMovies() {
+  try {
+    const query = `
+      SELECT Film.title, Client.first_name, Client.last_name, Rental.rental_date
+      FROM Rental
+      INNER JOIN Film ON Rental.film_id = Film.id
+      INNER JOIN Client ON Rental.client_id = Client.id
+      WHERE Rental.return_date IS NULL;
+    `;
+    const result = await dbPool.query(query);
+    console.log("Currently rented movies:");
+    result.rows.forEach(row => console.log(`${row.title} rented by ${row.first_name} ${row.last_name} on ${row.rental_date}`));
+  } catch (err) {
+    console.error("Error fetching currently rented movies:", err);
+  }
+}
+
+// Command-line arguments handling
 const args = process.argv.slice(2);
+
 (async () => {
   switch (args[0]) {
     case "setup":
       await setupTables();
       break;
-    case "insert-sample":
-      await insertSampleData();
+    case "show":
+      await showAllMovies();
       break;
-    case "show-movies":
-      await showMovies();
+    case "add":
+      await addMovie(args[1], args[2], args[3], args[4]);
       break;
-    case "update-email":
-      if (args[1] && args[2]) {
-        await dbPool.query(
-          "UPDATE Client SET email_address = $1 WHERE id = $2;",
-          [args[2], args[1]]
-        );
-        console.log("Email updated successfully.");
-      } else {
-        console.log("Usage: update-email <clientId> <newEmail>");
-      }
+    case "update":
+      await updateCustomerEmail(args[1], args[2]);
       break;
-    case "find-movies-by-customer":
-      if (args[1]) {
-        await findMoviesByCustomer(args[1]);
-      } else {
-        console.log("Usage: find-movies-by-customer <email>");
-      }
+    case "remove":
+      await removeCustomer(args[1]);
       break;
-    case "remove-customer":
-      if (args[1]) {
-        await removeCustomer(args[1]);
-      } else {
-        console.log("Usage: remove-customer <clientId>");
-      }
+    case "find-movies":
+      await findMoviesByCustomer(args[1]);
+      break;
+    case "find-customers":
+      await findCustomersByMovie(args[1]);
+      break;
+    case "rental-history":
+      await getRentalHistory(args[1]);
+      break;
+    case "currently-rented":
+      await listCurrentlyRentedMovies();
       break;
     default:
-      console.log("Invalid command. Available commands: setup, insert-sample, show-movies, update-email, find-movies-by-customer, remove-customer.");
+      console.log("Invalid command. Use one of the following commands:");
+      console.log("setup, show, add, update, remove, find-movies, find-customers, rental-history, currently-rented");
   }
-  dbPool.end();
+  process.exit();
 })();
